@@ -1,0 +1,89 @@
+#!/bin/sh
+
+# $FreeBSD$
+#
+# REQUIRE: FILESYSTEMS
+# REQUIRE: NETWORKING
+# PROVIDE: unifi
+#
+# Add the following lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# unifi_enable:    Set to YES to enable unifi
+#            Default: NO
+# unifi_user:    The user account used to run the unifi daemon.
+#            This is optional, however do not specifically set this to an
+#            empty string as this will cause the daemon to run as root.
+# unifi_group:    The group account used to run the unifi daemon.
+#            This is optional, however do not specifically set this to an
+#            empty string as this will cause the daemon to run with group wheel.
+
+. /etc/rc.subr
+
+name="unifi"
+rcvar=${name}_enable
+load_rc_config $name
+
+: ${unifi_enable:="NO"}
+: ${unifi_user:="unifi"}
+: ${unifi_group:="unifi"}
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+pidfile="/var/run/${name}.pid"
+
+unifi_start()
+{
+  if checkyesno ${rcvar}; then
+    echo "Starting UniFi controller. "
+
+    # Open up netcat to listen on port 8080, and then close the connection immediately, then quit.
+    # This works around the long startup delay. Thanks to gcohen55.
+    echo "" | nc -l 127.0.0.1 8080 >/dev/null &
+
+    # The process will run until it is terminated and does not fork on its own.
+    # So we start it in the background and stash the pid:
+    /usr/local/bin/java -jar /usr/local/UniFi/lib/ace.jar start &
+    echo $! > $pidfile
+
+  fi
+}
+
+unifi_stop()
+{
+
+  if [ -f $pidfile ]; then
+    echo -n "Signaling the UniFi controller to stop..."
+
+    # This process does take a while, but the stop command finishes before
+    # the service is actually stopped. So we start it in the background:
+    /usr/local/bin/java -jar /usr/local/UniFi/lib/ace.jar stop &
+
+    # Get the pid of the stopper:
+    stopper=$!
+
+    # Wait until the stopper finishes:
+    while [ `pgrep $stopper` ]; do
+      echo -n "."
+      sleep 5
+    done
+
+    echo " acknowledged."
+    echo -n "Waiting for the UniFi controller to stop (this can take a long time)..."
+
+    # ...then we wait until the service identified by the pid file goes away:
+    while [ `pgrep -F $pidfile` ]; do
+      echo -n "."
+      sleep 5
+    done
+
+    # Remove the pid file:
+    rm $pidfile
+
+    echo " stopped.";
+  else
+    echo "There is no pid file. The controller may not be running."
+  fi
+}
+
+run_rc_command "$1"
