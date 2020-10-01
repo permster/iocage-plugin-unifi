@@ -40,6 +40,12 @@ echo -n "Updating mongod link..."
 ln -sf /usr/local/bin/mongod /usr/local/UniFi/bin/mongod
 echo " done."
 
+# Create user
+pw user add unifi -c unifi -u 1057 -d /nonexistent -s /usr/bin/nologin
+
+# make "unifi" the owner of the install location
+chown -R unifi:unifi /usr/local/UniFi
+
 # Fix permissions so it'll run
 chmod u+x /etc/rc.d/unifi
 sysrc -f /etc/rc.conf unifi_enable="YES"
