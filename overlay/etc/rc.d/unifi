@@ -5,6 +5,7 @@
 # REQUIRE: FILESYSTEMS
 # REQUIRE: NETWORKING
 # PROVIDE: unifi
+# KEYWORD: shutdown
 #
 # Add the following lines to /etc/rc.conf.local or /etc/rc.conf
 # to enable this service:
@@ -30,6 +31,8 @@ load_rc_config $name
 
 start_cmd="${name}_start"
 stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+extra_commands="status"
 pidfile="/var/run/${name}.pid"
 
 unifi_start()
@@ -84,6 +87,22 @@ unifi_stop()
   else
     echo "There is no pid file. The controller may not be running."
   fi
+}
+
+unifi_status()
+
+{
+
+  if [ -e ${pidfile} ] && $(pgrep -F ${pidfile} > /dev/null) ; then
+    mypid=$(cat ${pidfile})
+  fi
+
+  if [ ! ${mypid} = '' ]; then
+    echo "${name} is running with PID ${mypid}.";
+  else
+    echo "${name} not running?";
+  fi
+
 }
 
 run_rc_command "$1"
